@@ -50,7 +50,7 @@ class MPlayer():
 
 
 		self.methods = {}
-		player = subprocess.Popen(['mplayer','-input','cmdlist'],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+		player = subprocess.Popen([mplayer_bin,'-input','cmdlist'],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
 
 		# Add each command found
 		for line in player.stdout:
