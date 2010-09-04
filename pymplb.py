@@ -24,7 +24,7 @@ import atexit
 class MPlayer():
 	arg_types = {'Flag':type(False), 'String':type(''), 'Integer':type(0), 'Float':type(0.0), 'Position':type(0.0), 'Time':type(0.0)} # Mapping from mplayer -> Python types
 
-	def add_methods(self):
+	def add_methods(self, mplayer_bin):
 		# Function which is run for each mplayer command
 		def cmd(name, argtypes, obligatory, *args, **kwargs):
 			if len(args) < obligatory:
@@ -63,7 +63,7 @@ class MPlayer():
 
 			self.methods[name] = partial(cmd, name, argtypes, obligatory)
 
-	def add_properties(self):
+	def add_properties(self, mplayer_bin):
 		# Function for getting and setting properties
 		def prop(name, p_type, min, max, value=None, **kwargs):
 			if value == None:
@@ -82,7 +82,7 @@ class MPlayer():
 			self.set_property(name,str(value),**kwargs)
 				
 		self.properties = {}
-		player = subprocess.Popen(['mplayer','-list-properties'],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+		player = subprocess.Popen([mplayer_bin,'-list-properties'],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
 		# Add each property found
 		for line in player.stdout:
 			parts = line.strip().split()
@@ -110,8 +110,8 @@ class MPlayer():
 			self.methods['p_'+name] = partial(prop, name, p_type, min, max)
 
 	def __init__(self,mplayer_bin='mplayer', mplayer_args_d={}, **mplayer_args):
-		self.add_methods()
-		self.add_properties()
+		self.add_methods(mplayer_bin)
+		self.add_properties(mplayer_bin)
 		mplayer_args.update(mplayer_args_d)
 		cmd_args = [mplayer_bin,'-slave','-quiet','-idle','-msglevel','all=-1:global=4']
 		for (k,v) in mplayer_args.items():
