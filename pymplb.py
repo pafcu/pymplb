@@ -20,9 +20,23 @@ from functools import partial
 import subprocess
 import atexit
 
+class PlayerNotFoundException(Exception):
+	def __init__(self,player_path):
+		Exception.__init__(self,'Player not found at %s'%player_path)
+
 # BUG: Lists are not supported
 class MPlayer():
 	arg_types = {'Flag':type(False), 'String':type(''), 'Integer':type(0), 'Float':type(0.0), 'Position':type(0.0), 'Time':type(0.0)} # Mapping from mplayer -> Python types
+
+	def run_player(self,args):
+		try:
+			player = subprocess.Popen(args,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+		except OSError, e:
+			if e.errno == 2:
+				raise PlayerNotFoundException(args[0])
+			else:
+				raise e
+		return player
 
 	def add_methods(self, mplayer_bin):
 		# Function which is run for each mplayer command
@@ -50,7 +64,8 @@ class MPlayer():
 
 
 		self.methods = {}
-		player = subprocess.Popen([mplayer_bin,'-input','cmdlist'],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+		player = self.run_player([mplayer_bin,'-input','cmdlist'])
+			
 
 		# Add each command found
 		for line in player.stdout:
@@ -69,7 +84,10 @@ class MPlayer():
 			if value == None:
 				r = self.get_property(name,**kwargs)
 				if r != None:
-					r = p_type(r)
+					if p_type != type(False):
+					  r = p_type(r)
+					else:
+					  r = r == 'yes'
 				return r
 
 			if type(value) != p_type:
@@ -82,7 +100,7 @@ class MPlayer():
 			self.set_property(name,str(value),**kwargs)
 				
 		self.properties = {}
-		player = subprocess.Popen([mplayer_bin,'-list-properties'],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+		player = self.run_player([mplayer_bin,'-list-properties'])
 		# Add each property found
 		for line in player.stdout:
 			parts = line.strip().split()
@@ -118,7 +136,7 @@ class MPlayer():
 			cmd_args.append('-'+k)
 			cmd_args.append(v)
 
-		self.player = subprocess.Popen(cmd_args,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+		self.player = self.run_player(cmd_args)
 
 		atexit.register(self.cleanup) # Make sure subprocess is killed
 
