@@ -26,10 +26,9 @@ class PlayerNotFoundException(Exception):
 		Exception.__init__(self,'Player not found at %s'%player_path)
 
 # BUG: Lists are not supported
-class MPlayer():
+class MPlayer(object):
 	"""This is the main class used to play audio and video files by launching mplayer as a subprocess in slave mode. Slave mode methods can be called directly (e.g. x.loadfile("somefile)") while properties are prefixed to avoid name conflicts between methods and properties (e.g. x.p_looping = False). Available methods and properties are determined at runtime when the class is instantiated. All methods and properties are type-safe and properties respect minimum and maximum values given by mplayer."""
 	arg_types = {'Flag':type(False), 'String':type(''), 'Integer':type(0), 'Float':type(0.0), 'Position':type(0.0), 'Time':type(0.0)} # Mapping from mplayer -> Python types
-
 	def __run_player(self,args):
 		try:
 			player = subprocess.Popen(args,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
@@ -81,17 +80,18 @@ class MPlayer():
 			
 
 	def __add_properties(self, mplayer_bin):
-		# Function for getting and setting properties
-		def prop(name, p_type, min, max, value=None, **kwargs):
-			if value == None:
-				r = self.get_property(name,**kwargs)
-				if r != None:
-					if p_type != type(False):
-						r = p_type(r)
-					else:
-						r = r == 'yes'
-				return r
+		def get_prop(name,p_type,self):
+			# self argument is needed to be property, at the end because of partial
+			r = self.get_property(name)
+			if r != None:
+				if p_type != type(False):
+					r = p_type(r)
+				else:
+					r = r == 'yes'
+			return r
 
+		# Function for getting and setting properties
+		def set_prop(name, p_type, min, max, self, value):
 			if type(value) != p_type:
 				raise TypeError('TypeError: %s has type %s, not %s'%(name,p_type,type(value).__name__))
 			if min != None and value < min:
@@ -99,9 +99,8 @@ class MPlayer():
 			if max != None and value > max:
 				raise TypeError('TypeError: %s must be at most %s (<%s)'%(name,max,value))
 
-			self.set_property(name,str(value),**kwargs)
+			self.set_property(name,str(value))
 				
-		self.__properties = {}
 		player = self.__run_player([mplayer_bin,'-list-properties'])
 		# Add each property found
 		for line in player.stdout:
@@ -126,7 +125,9 @@ class MPlayer():
 			else:
 				max = p_type(max)
 
-			self.__properties[self.__property_prefix+name] = partial(prop, name, p_type, min, max)
+			getter = partial(get_prop, name, p_type)
+			setter = partial(set_prop, name, p_type, min, max)
+			setattr(self.__class__,self.__property_prefix+name,property(getter,setter))
 
 	def __init__(self, mplayer_bin='mplayer', property_prefix='p_', mplayer_args_d={}, **mplayer_args):
 		self.__property_prefix = property_prefix
@@ -140,26 +141,10 @@ class MPlayer():
 
 		self.__player = self.__run_player(cmd_args)
 
-		self.__initialized = True
 		atexit.register(self.__cleanup) # Make sure subprocess is killed
 
 	def __cleanup(self):
 		self.__player.terminate()
-
-	def __getattr__(self, name):
-		try:
-			return self.__properties[name]()
-		except KeyError:
-			raise AttributeError("'%s' object has no attribute '%s'"%(type(self).__name__,name))
-
-	def __setattr__(self,name,value):
-		if '_MPlayer__initialized' in self.__dict__:
-			try:
-				self.__properties[name](value)
-			except KeyError:
-				raise AttributeError("'%s' object has no attribute '%s'"%(type(self).__name__,name))
-		else:
-			self.__dict__[name] = value
 
 if __name__ == '__main__':
 	p = MPlayer()
