@@ -21,14 +21,16 @@ import subprocess
 import atexit
 
 class PlayerNotFoundException(Exception):
+	"""Exception which is raised when the external mplayer binary is not found."""
 	def __init__(self,player_path):
 		Exception.__init__(self,'Player not found at %s'%player_path)
 
 # BUG: Lists are not supported
 class MPlayer():
+	"""This is the main class used to play audio and video files by launching mplayer as a subprocess in slave mode. Slave mode methods can be called directly (e.g. x.loadfile("somefile)") while properties are prefixed to avoid name conflicts between methods and properties (e.g. x.p_looping = False). Available methods and properties are determined at runtime when the class is instantiated. All methods and properties are type-safe and properties respect minimum and maximum values given by mplayer."""
 	arg_types = {'Flag':type(False), 'String':type(''), 'Integer':type(0), 'Float':type(0.0), 'Position':type(0.0), 'Time':type(0.0)} # Mapping from mplayer -> Python types
 
-	def run_player(self,args):
+	def __run_player(self,args):
 		try:
 			player = subprocess.Popen(args,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
 		except OSError, e:
@@ -38,7 +40,7 @@ class MPlayer():
 				raise e
 		return player
 
-	def add_methods(self, mplayer_bin):
+	def __add_methods(self, mplayer_bin):
 		# Function which is run for each mplayer command
 		def cmd(name, argtypes, obligatory, *args, **kwargs):
 			if len(args) < obligatory:
@@ -51,20 +53,19 @@ class MPlayer():
 			pausing = kwargs.get('pausing','pausing_keep')
 			if pausing != '':
 				pausing = pausing + ' '
-			print >>self.player.stdin, pausing+name,' '.join((str(x) for x in args))
+			print >>self.__player.stdin, pausing+name,' '.join((str(x) for x in args))
 
 			# Read return value of commands that give one
 			# Hopefully this is smart enough ...
 			if name.startswith('get_'):
-				r = self.player.stdout.readline().split('=',2)[1].rstrip()
+				r = self.__player.stdout.readline().split('=',2)[1].rstrip()
 				if r=='PROPERTY_UNAVAILABLE':
 					return None
 				else:
 					return r
 
 
-		self.methods = {}
-		player = self.run_player([mplayer_bin,'-input','cmdlist'])
+		player = self.__run_player([mplayer_bin,'-input','cmdlist'])
 			
 
 		# Add each command found
@@ -76,9 +77,10 @@ class MPlayer():
 				obligatory = len([x for x in parts[1:] if x[0] != '[']) # Number of obligatory args
 				argtypes = [MPlayer.arg_types[y] for y in [x.strip('[]') for x in parts[1:]]]
 
-			self.methods[name] = partial(cmd, name, argtypes, obligatory)
+			self.__dict__[name] = partial(cmd, name, argtypes, obligatory)
+			
 
-	def add_properties(self, mplayer_bin):
+	def __add_properties(self, mplayer_bin):
 		# Function for getting and setting properties
 		def prop(name, p_type, min, max, value=None, **kwargs):
 			if value == None:
@@ -99,8 +101,8 @@ class MPlayer():
 
 			self.set_property(name,str(value),**kwargs)
 				
-		self.properties = {}
-		player = self.run_player([mplayer_bin,'-list-properties'])
+		self.__properties = {}
+		player = self.__run_player([mplayer_bin,'-list-properties'])
 		# Add each property found
 		for line in player.stdout:
 			parts = line.strip().split()
@@ -110,7 +112,6 @@ class MPlayer():
 			try:
 				p_type = MPlayer.arg_types[parts[1]]
 			except KeyError, e:
-				print e
 				continue
 				
 			min = parts[2]
@@ -125,29 +126,40 @@ class MPlayer():
 			else:
 				max = p_type(max)
 
-			self.methods['p_'+name] = partial(prop, name, p_type, min, max)
+			self.__properties[self.__property_prefix+name] = partial(prop, name, p_type, min, max)
 
-	def __init__(self,mplayer_bin='mplayer', mplayer_args_d={}, **mplayer_args):
-		self.add_methods(mplayer_bin)
-		self.add_properties(mplayer_bin)
+	def __init__(self, mplayer_bin='mplayer', property_prefix='p_', mplayer_args_d={}, **mplayer_args):
+		self.__property_prefix = property_prefix
+		self.__add_methods(mplayer_bin)
+		self.__add_properties(mplayer_bin)
 		mplayer_args.update(mplayer_args_d)
 		cmd_args = [mplayer_bin,'-slave','-quiet','-idle','-msglevel','all=-1:global=4']
 		for (k,v) in mplayer_args.items():
 			cmd_args.append('-'+k)
 			cmd_args.append(v)
 
-		self.player = self.run_player(cmd_args)
+		self.__player = self.__run_player(cmd_args)
 
-		atexit.register(self.cleanup) # Make sure subprocess is killed
+		self.__initialized = True
+		atexit.register(self.__cleanup) # Make sure subprocess is killed
 
-	def cleanup(self):
-		self.player.terminate()
+	def __cleanup(self):
+		self.__player.terminate()
 
-	def __getattr__(self, m):
+	def __getattr__(self, name):
 		try:
-			return self.methods[m]
+			return self.__properties[name]()
 		except KeyError:
-			raise AttributeError("'%s' object has no attribute '%s'"%(type(self).__name__,m))
+			raise AttributeError("'%s' object has no attribute '%s'"%(type(self).__name__,name))
+
+	def __setattr__(self,name,value):
+		if '_MPlayer__initialized' in self.__dict__:
+			try:
+				self.__properties[name](value)
+			except KeyError:
+				raise AttributeError("'%s' object has no attribute '%s'"%(type(self).__name__,name))
+		else:
+			self.__dict__[name] = value
 
 if __name__ == '__main__':
 	p = MPlayer()
@@ -155,9 +167,9 @@ if __name__ == '__main__':
 	p.af_add('scaletempo')
 	p.speed_set(2.0)
 	sys.stdin.readline()
-	print p.p_time_pos()
+	print p.p_time_pos
 	sys.stdin.readline()
-	p.p_time_pos(10.0)
+	p.p_time_pos = 10.0
 	sys.stdin.readline()
-	print p.p_time_pos()
+	print p.p_time_pos
 	sys.stdin.readline()
