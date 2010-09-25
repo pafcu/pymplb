@@ -48,9 +48,9 @@ class MPlayer():
 			for i in range(len(args)):
 				if type(args[i]) != argtypes[i]:
 					raise TypeError('Argument %d of %s() has type %s, should be %s'%(i,name,type(args[i]).__name__,argtypes[i].__name__))
-			pausing = kwargs.get('pausing','pausing_keep')	      
+			pausing = kwargs.get('pausing','pausing_keep')
 			if pausing != '':
-			  pausing = pausing + ' '
+				pausing = pausing + ' '
 			print >>self.player.stdin, pausing+name,' '.join((str(x) for x in args))
 
 			# Read return value of commands that give one
@@ -85,9 +85,9 @@ class MPlayer():
 				r = self.get_property(name,**kwargs)
 				if r != None:
 					if p_type != type(False):
-					  r = p_type(r)
+						r = p_type(r)
 					else:
-					  r = r == 'yes'
+						r = r == 'yes'
 				return r
 
 			if type(value) != p_type:
