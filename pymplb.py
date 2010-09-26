@@ -27,7 +27,13 @@ class PlayerNotFoundException(Exception):
 
 # BUG: Lists are not supported
 class MPlayer(object):
-	"""This is the main class used to play audio and video files by launching mplayer as a subprocess in slave mode. Slave mode methods can be called directly (e.g. x.loadfile("somefile)") while properties are prefixed to avoid name conflicts between methods and properties (e.g. x.p_looping = False). Available methods and properties are determined at runtime when the class is instantiated. All methods and properties are type-safe and properties respect minimum and maximum values given by mplayer."""
+	"""
+	This is the main class used to play audio and video files by launching mplayer as a subprocess in slave mode.
+	Slave mode methods can be called directly (e.g. x.loadfile("somefile)") while properties are prefixed to avoid
+	name conflicts between methods and properties (e.g. x.p_looping = False).
+	Available methods and properties are determined at runtime when the class is instantiated. All methods and properties are
+	type-safe and properties respect minimum and maximum values given by mplayer.
+	"""
 	arg_types = {'Flag':type(False), 'String':type(''), 'Integer':type(0), 'Float':type(0.0), 'Position':type(0.0), 'Time':type(0.0)} # Mapping from mplayer -> Python types
 	def __run_player(self,args):
 		try:
@@ -63,9 +69,7 @@ class MPlayer(object):
 				else:
 					return r
 
-
 		player = self.__run_player([mplayer_bin,'-input','cmdlist'])
-			
 
 		# Add each command found
 		for line in player.stdout:
@@ -127,7 +131,7 @@ class MPlayer(object):
 
 			getter = partial(get_prop, name, p_type)
 			setter = partial(set_prop, name, p_type, min, max)
-			setattr(self.__class__,self.__property_prefix+name,property(getter,setter))
+			setattr(self.__class__, self.__property_prefix+name, property(getter,setter))
 
 	def __init__(self, mplayer_bin='mplayer', property_prefix='p_', mplayer_args_d={}, **mplayer_args):
 		self.__property_prefix = property_prefix
