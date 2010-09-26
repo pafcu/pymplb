@@ -34,7 +34,7 @@ class MPlayer(object):
 	Available methods and properties are determined at runtime when the class is instantiated. All methods and properties are
 	type-safe and properties respect minimum and maximum values given by mplayer.
 	"""
-	arg_types = {'Flag':type(False), 'String':type(''), 'Integer':type(0), 'Float':type(0.0), 'Position':type(0.0), 'Time':type(0.0)} # Mapping from mplayer -> Python types
+	__arg_types = {'Flag':type(False), 'String':type(''), 'Integer':type(0), 'Float':type(0.0), 'Position':type(0.0), 'Time':type(0.0)} # Mapping from mplayer -> Python types
 	def __run_player(self,args):
 		try:
 			player = subprocess.Popen(args,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
@@ -75,12 +75,20 @@ class MPlayer(object):
 		for line in player.stdout:
 			parts = line.strip().split()
 			name = parts[0]
-			args = []
+			args = parts[1:]
 			if len(parts) > 1:
-				obligatory = len([x for x in parts[1:] if x[0] != '[']) # Number of obligatory args
-				argtypes = [MPlayer.arg_types[y] for y in [x.strip('[]') for x in parts[1:]]]
+				obligatory = len([x for x in args if x[0] != '[']) # Number of obligatory args
+				argtypes = [MPlayer.__arg_types[y] for y in [x.strip('[]') for x in args]]
 
-			self.__dict__[name] = partial(cmd, name, argtypes, obligatory)
+			f = partial(cmd, name, argtypes, obligatory)
+			if len(args) == 0:
+				f.__doc__ = 'Method taking no arguments'
+			elif len(args) == 1:
+				f.__doc__ = 'Method taking argument of type %s'%args[0]
+			else:
+				f.__doc__ = 'Method taking arguments of types %s'%' '.join(args)
+
+			setattr(self.__class__, name, f)
 			
 
 	def __add_properties(self, mplayer_bin):
@@ -97,7 +105,7 @@ class MPlayer(object):
 		# Function for getting and setting properties
 		def set_prop(name, p_type, min, max, self, value):
 			if type(value) != p_type:
-				raise TypeError('TypeError: %s has type %s, not %s'%(name,p_type,type(value).__name__))
+				raise TypeError('TypeError: %s has type %s, not %s'%(name,p_type.__name__,type(value).__name__))
 			if min != None and value < min:
 				raise TypeError('TypeError: %s must be at least %s (>%s)'%(name,min,value))
 			if max != None and value > max:
@@ -113,7 +121,7 @@ class MPlayer(object):
 				continue
 			name = parts[0]
 			try:
-				p_type = MPlayer.arg_types[parts[1]]
+				p_type = MPlayer.__arg_types[parts[1]]
 			except KeyError, e:
 				continue
 				
@@ -131,7 +139,7 @@ class MPlayer(object):
 
 			getter = partial(get_prop, name, p_type)
 			setter = partial(set_prop, name, p_type, min, max)
-			setattr(self.__class__, self.__property_prefix+name, property(getter,setter))
+			setattr(self.__class__, self.__property_prefix+name, property(getter,setter, doc='Property of type %s in range [%s, %s].'%(p_type.__name__,min,max)))
 
 	def __init__(self, mplayer_bin='mplayer', property_prefix='p_', mplayer_args_d={}, **mplayer_args):
 		self.__property_prefix = property_prefix
