@@ -25,7 +25,6 @@ class PlayerNotFoundException(Exception):
 	def __init__(self,player_path):
 		Exception.__init__(self,'Player not found at %s'%player_path)
 
-# BUG: Lists are not supported
 class MPlayer(object):
 	"""
 	This is the main class used to play audio and video files by launching mplayer as a subprocess in slave mode.
@@ -116,24 +115,42 @@ def _add_methods(mplayer_bin):
 		setattr(MPlayer, MPlayer._method_prefix+name, f)
 
 def _add_properties(mplayer_bin):
-	def get_prop(name,p_type,self):
+	def get_prop(name,p_type,islist,self):
 		# self argument is needed to be property, at the end because of partial
 		r = self.get_property(name)
+		if islist and r == '(null)':
+			return None
 		if r != None:
 			if p_type != type(False):
-				r = p_type(r)
+				if islist:
+					r = [p_type(x) for x in r.split(',')]
+				else:
+					r = p_type(r)
 			else:
-				r = r == 'yes'
+				if islist:
+					r = [x == 'yes' for x in r.split(',')]
+				else:
+					r = (r == 'yes')
 		return r
 
 	# Function for getting and setting properties
-	def set_prop(name, p_type, min, max, self, value):
-		if type(value) != p_type:
-			raise TypeError('TypeError: %s has type %s, not %s'%(name,p_type.__name__,type(value).__name__))
-		if min != None and value < min:
-			raise TypeError('TypeError: %s must be at least %s (>%s)'%(name,min,value))
-		if max != None and value > max:
-			raise TypeError('TypeError: %s must be at most %s (<%s)'%(name,max,value))
+	def set_prop(name, p_type, islist, min, max, self, value):
+		if islist:
+			for x in value:
+				if type(x) != p_type:
+					raise TypeError('TypeError: Element %s has wrong type %s, not %s'%(x,type(x).__name__,p_type))
+				if min != None and x < min:
+					raise ValueError('ValueError: Element %s must be at least %s'%(x,min))
+				if max != None and x > max:
+					raise ValueError('ValueError: Element %s must be at most %s'%(x,max))
+			value = ','.join([str(x) for x in value])
+		else:
+			if type(value) != p_type:
+				raise TypeError('TypeError: %s has type %s, not %s'%(name,p_type.__name__,type(value).__name__))
+			if min != None and value < min:
+				raise ValueError('ValueError: %s must be at least %s (>%s)'%(name,min,value))
+			if max != None and value > max:
+				raise ValueError('ValueError: %s must be at most %s (<%s)'%(name,max,value))
 
 		self.set_property(name,str(value))
 			
@@ -141,7 +158,7 @@ def _add_properties(mplayer_bin):
 	# Add each property found
 	for line in player.stdout:
 		parts = line.strip().split()
-		if len(parts) != 4:
+		if not (len(parts) == 4 or (len(parts) == 5 and parts[2] == 'list')):
 			continue
 		name = parts[0]
 		try:
@@ -149,8 +166,15 @@ def _add_properties(mplayer_bin):
 		except KeyError, e:
 			continue
 			
-		min = parts[2]
-		max = parts[3]
+		if parts[2] == 'list': # Actually a list
+			min = parts[3]
+			max = parts[4]
+			islist = True
+		else:
+			min = parts[2]
+			max = parts[3]
+			islist = False
+
 		if min == 'No':
 			min = None
 		else:
@@ -161,8 +185,8 @@ def _add_properties(mplayer_bin):
 		else:
 			max = p_type(max)
 
-		getter = partial(get_prop, name, p_type)
-		setter = partial(set_prop, name, p_type, min, max)
+		getter = partial(get_prop, name, p_type, islist)
+		setter = partial(set_prop, name, p_type, islist, min, max)
 		setattr(MPlayer, MPlayer._property_prefix+name, property(getter,setter, doc='Property of type %s in range [%s, %s].'%(p_type.__name__,min,max)))
 
 def _run_player(args):
@@ -176,11 +200,11 @@ def _run_player(args):
 	return player
 
 if __name__ == '__main__':
-	print "foo"
 	p = MPlayer()
-	p.loadfile('test.ogv')
+	p.loadfile('test')
 	p.af_add('scaletempo')
 	p.speed_set(2.0)
+	print p.p_metadata
 	print p.p_time_pos
 	sys.stdin.readline()
 	print p.p_time_pos
