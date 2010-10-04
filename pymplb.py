@@ -178,9 +178,10 @@ def _run_player(args):
 if __name__ == '__main__':
 	print "foo"
 	p = MPlayer()
-	p.loadfile('test')
+	p.loadfile('test.ogv')
 	p.af_add('scaletempo')
 	p.speed_set(2.0)
+	print p.p_time_pos
 	sys.stdin.readline()
 	print p.p_time_pos
 	sys.stdin.readline()
