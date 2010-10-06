@@ -65,7 +65,6 @@ def initialize(mplayer_bin='mplayer',method_prefix='',property_prefix='p_'):
 	MPlayer._property_prefix = property_prefix
 	_add_methods(mplayer_bin)
 	_add_properties(mplayer_bin)
-	print MPlayer._method_prefix
 
 def _add_methods(mplayer_bin):
 	# Function which is run for each mplayer command
@@ -80,12 +79,15 @@ def _add_methods(mplayer_bin):
 		pausing = kwargs.get('pausing','pausing_keep')
 		if pausing != '':
 			pausing = pausing + ' '
-		print >>player.stdin, pausing+name,' '.join((str(x) for x in args))
+
+		s = '%s%s %s\n'%(pausing,name,' '.join((str(x) for x in args)))
+		player.stdin.write(s.encode('utf-8'))
+		player.stdin.flush()
 
 		# Read return value of commands that give one
 		# Hopefully this is smart enough ...
 		if name.startswith('get_'):
-			r = player.stdout.readline().split('=',2)[1].rstrip()
+			r = str(player.stdout.readline().decode('utf-8')).split('=',2)[1].rstrip()
 			if r=='PROPERTY_UNAVAILABLE':
 				return None
 			else:
@@ -95,6 +97,7 @@ def _add_methods(mplayer_bin):
 
 	# Add each command found
 	for line in player.stdout:
+		line = str(line.decode('utf-8'))
 		parts = line.strip().split()
 		name = parts[0]
 		args = parts[1:]
@@ -102,7 +105,6 @@ def _add_methods(mplayer_bin):
 			obligatory = len([x for x in args if x[0] != '[']) # Number of obligatory args
 			argtypes = [MPlayer._arg_types[y] for y in [x.strip('[]') for x in args]]
 
-		#f = partial(cmd, self.__player, name, argtypes, obligatory)
 		f = partial(cmd,name,argtypes,obligatory)
 		if len(args) == 0:
 			f.__doc__ = 'Method taking no arguments'
@@ -157,13 +159,14 @@ def _add_properties(mplayer_bin):
 	player = _run_player([mplayer_bin,'-list-properties'])
 	# Add each property found
 	for line in player.stdout:
+		line = str(line.decode('utf-8'))
 		parts = line.strip().split()
 		if not (len(parts) == 4 or (len(parts) == 5 and parts[2] == 'list')):
 			continue
 		name = parts[0]
 		try:
 			p_type = MPlayer._arg_types[parts[1]]
-		except KeyError, e:
+		except KeyError as e:
 			continue
 			
 		if parts[2] == 'list': # Actually a list
@@ -192,7 +195,7 @@ def _add_properties(mplayer_bin):
 def _run_player(args):
 	try:
 		player = subprocess.Popen(args,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-	except OSError, e:
+	except OSError as e:
 		if e.errno == 2:
 			raise PlayerNotFoundException(args[0])
 		else:
@@ -204,12 +207,13 @@ if __name__ == '__main__':
 	p.loadfile('test')
 	p.af_add('scaletempo')
 	p.speed_set(2.0)
-	print p.p_metadata
-	print p.p_time_pos
 	sys.stdin.readline()
-	print p.p_time_pos
+	print(p.p_metadata)
+	print(p.p_time_pos)
+	sys.stdin.readline()
+	print(p.p_time_pos)
 	sys.stdin.readline()
 	p.p_time_pos = 10.0
 	sys.stdin.readline()
-	print p.p_time_pos
+	print(p.p_time_pos)
 	sys.stdin.readline()
