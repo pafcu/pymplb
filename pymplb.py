@@ -19,54 +19,52 @@ import sys
 from functools import partial
 import subprocess
 import atexit
+import copy
 
 class PlayerNotFoundException(Exception):
 	"""Exception which is raised when the external mplayer binary is not found."""
 	def __init__(self,player_path):
 		Exception.__init__(self,'Player not found at %s'%player_path)
 
-class MPlayer(object):
-	"""
-	This is the main class used to play audio and video files by launching mplayer as a subprocess in slave mode.
-	Slave mode methods can be called directly (e.g. x.loadfile("somefile)") while properties are prefixed to avoid
-	name conflicts between methods and properties (e.g. x.p_looping = False).
-	Available methods and properties are determined at runtime when the class is instantiated. All methods and properties are
-	type-safe and properties respect minimum and maximum values given by mplayer.
-	"""
-	_arg_types = {'Flag':type(False), 'String':type(''), 'Integer':type(0), 'Float':type(0.0), 'Position':type(0.0), 'Time':type(0.0)} # Mapping from mplayer -> Python types
-	_player_methods = {}
-	_method_prefix = ''
-	_property_prefix = ''
+def makeMPlayerClass(mplayer_bin='mplayer', method_prefix='', property_prefix='p_'):
+	class _MPlayer(object):
+		"""
+		This is the main class used to play audio and video files by launching mplayer as a subprocess in slave mode.
+		Slave mode methods can be called directly (e.g. x.loadfile("somefile)") while properties are prefixed to avoid
+		name conflicts between methods and properties (e.g. x.p_looping = False).
+		Available methods and properties are determined at runtime when the class is instantiated. All methods and properties are
+		type-safe and properties respect minimum and maximum values given by mplayer.
+		"""
+		_arg_types = {'Flag':type(False), 'String':type(''), 'Integer':type(0), 'Float':type(0.0), 'Position':type(0.0), 'Time':type(0.0)} # Mapping from mplayer -> Python types
+		_player_methods = {}
+		_method_prefix = ''
+		_property_prefix = ''
 
-	def __init__(self, mplayer_bin='mplayer', mplayer_args_d={}, **mplayer_args):
-		if MPlayer._player_methods == {}:
-			initialize() # Initialize class if it hasn't been done explicitly
+		def __init__(self, mplayer_bin='mplayer', mplayer_args_d={}, **mplayer_args):
+			mplayer_args.update(mplayer_args_d)
+			cmd_args = [mplayer_bin,'-slave','-quiet','-idle','-msglevel','all=-1:global=4']
+			for (k,v) in mplayer_args.items():
+				cmd_args.append('-'+k)
+				cmd_args.append(v)
 
-		mplayer_args.update(mplayer_args_d)
-		cmd_args = [mplayer_bin,'-slave','-quiet','-idle','-msglevel','all=-1:global=4']
-		for (k,v) in mplayer_args.items():
-			cmd_args.append('-'+k)
-			cmd_args.append(v)
+			self.__player = _run_player(cmd_args)
 
-		self.__player = _run_player(cmd_args)
+			# Partially apply methods to use the newly created player
+			for (name,f) in self.__class__._player_methods.items():
+				setattr(self,name,partial(f,self.__player))
 
-		# Partially apply methods to use the newly created player
-		for (name,f) in MPlayer._player_methods.items():
-			setattr(self,name,partial(f,self.__player))
+			atexit.register(self.__cleanup) # Make sure subprocess is killed
 
-		atexit.register(self.__cleanup) # Make sure subprocess is killed
+		def __cleanup(self):
+			self.__player.terminate()
 
-	def __cleanup(self):
-		self.__player.terminate()
+	_MPlayer._method_prefix = method_prefix
+	_MPlayer._property_prefix = property_prefix
+	_add_methods(_MPlayer,mplayer_bin)
+	_add_properties(_MPlayer,mplayer_bin)
+	return _MPlayer
 
-
-def initialize(mplayer_bin='mplayer',method_prefix='',property_prefix='p_'):
-	MPlayer._method_prefix = method_prefix
-	MPlayer._property_prefix = property_prefix
-	_add_methods(mplayer_bin)
-	_add_properties(mplayer_bin)
-
-def _add_methods(mplayer_bin):
+def _add_methods(cls, mplayer_bin):
 	# Function which is run for each mplayer command
 	def cmd(name, argtypes, obligatory, player, *args, **kwargs):
 		if len(args) < obligatory:
@@ -103,7 +101,7 @@ def _add_methods(mplayer_bin):
 		args = parts[1:]
 		if len(parts) > 1:
 			obligatory = len([x for x in args if x[0] != '[']) # Number of obligatory args
-			argtypes = [MPlayer._arg_types[y] for y in [x.strip('[]') for x in args]]
+			argtypes = [cls._arg_types[y] for y in [x.strip('[]') for x in args]]
 
 		f = partial(cmd,name,argtypes,obligatory)
 		if len(args) == 0:
@@ -113,15 +111,15 @@ def _add_methods(mplayer_bin):
 		else:
 			f.__doc__ = 'Method taking arguments of types %s'%' '.join(args)
 
-		MPlayer._player_methods[MPlayer._method_prefix+name] = f
-		setattr(MPlayer, MPlayer._method_prefix+name, f)
+		cls._player_methods[cls._method_prefix+name] = f
+		setattr(cls, cls._method_prefix+name, f)
 
-def _add_properties(mplayer_bin):
+def _add_properties(cls, mplayer_bin):
 	def get_prop(name,p_type,islist,self):
 		# self argument is needed to be property, at the end because of partial
-		r = self.get_property(name)
+		r = getattr(self, cls._method_prefix+'get_property')(name)
 		if islist and r == '(null)':
-			return None
+			return []
 		if r != None:
 			if p_type != type(False):
 				if islist:
@@ -154,7 +152,7 @@ def _add_properties(mplayer_bin):
 			if max != None and value > max:
 				raise ValueError('ValueError: %s must be at most %s (<%s)'%(name,max,value))
 
-		self.set_property(name,str(value))
+		getattr(self,cls._method_prefix+'set_property')(name,str(value))
 			
 	player = _run_player([mplayer_bin,'-list-properties'])
 	# Add each property found
@@ -165,7 +163,7 @@ def _add_properties(mplayer_bin):
 			continue
 		name = parts[0]
 		try:
-			p_type = MPlayer._arg_types[parts[1]]
+			p_type = cls._arg_types[parts[1]]
 		except KeyError as e:
 			continue
 			
@@ -190,7 +188,7 @@ def _add_properties(mplayer_bin):
 
 		getter = partial(get_prop, name, p_type, islist)
 		setter = partial(set_prop, name, p_type, islist, min, max)
-		setattr(MPlayer, MPlayer._property_prefix+name, property(getter,setter, doc='Property of type %s in range [%s, %s].'%(p_type.__name__,min,max)))
+		setattr(cls, cls._property_prefix+name, property(getter,setter, doc='Property of type %s in range [%s, %s].'%(p_type.__name__,min,max)))
 
 def _run_player(args):
 	try:
@@ -201,6 +199,8 @@ def _run_player(args):
 		else:
 			raise e
 	return player
+
+MPlayer = makeMPlayerClass()
 
 if __name__ == '__main__':
 	p = MPlayer()
