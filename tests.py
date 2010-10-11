@@ -29,6 +29,14 @@ class TestMPlayer(unittest.TestCase):
 		r = player.p_metadata
 		self.assertEqual(type(r),type([]))
 
+	def testLoadedFileProperties(self):
+		player = pymplb.MPlayer()
+		r = player.p_metadata
+		self.assertEqual(r,None)
+		player.loadfile('test.ogv')
+		r = player.p_metadata
+		self.assertNotEqual(r,None)
+
 	def testOtherPrefix(self):
 		player = pymplb.makeMPlayerClass(property_prefix='prop_',method_prefix='m_')()
 		r = player.prop_loop
