@@ -38,7 +38,7 @@ class TestMPlayer(unittest.TestCase):
 		self.assertNotEqual(r,None)
 
 	def testOtherPrefix(self):
-		player = pymplb.makeMPlayerClass(property_prefix='prop_',method_prefix='m_')()
+		player = pymplb.make_mplayer_class(property_prefix='prop_',method_prefix='m_')()
 		r = player.prop_loop
 		player.prop_loop = 5
 		r = player.m_get_property('loop')
