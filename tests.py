@@ -1,5 +1,4 @@
 import unittest
-import time
 import pymplb
 
 class TestMPlayer(unittest.TestCase):
@@ -23,7 +22,6 @@ class TestMPlayer(unittest.TestCase):
 	def testListProperty(self):
 		player = pymplb.MPlayer()
 		player.loadfile('test.ogv')
-		time.sleep(0.1)
 		r = player.p_metadata
 		self.assertEqual(type(r),type([]))
 
@@ -33,7 +31,7 @@ class TestMPlayer(unittest.TestCase):
 		self.assertEqual(r,None)
 
 	def testLoadedFileProperties(self):
-		player = pymplb.MPlayer()
+		player = pymplb.MPlayer(fs=True)
 		player.loadfile('test.ogv')
 		r = player.p_filename
 		self.assertNotEqual(r,None)
@@ -68,6 +66,18 @@ class TestMPlayer(unittest.TestCase):
 		player = pymplb.MPlayer()
 		r = player.p_loop
 		self.assertEqual(type(r),type(0))
+
+	def testInitArgumentsDict(self):
+		player = pymplb.MPlayer({'fs':True,'speed':2.0})
+		player.loadfile('test.ogv')
+
+	def testInitArgumentsKw(self):
+		player = pymplb.MPlayer(fs=True,speed=2.0)
+		player.loadfile('test.ogv')
+
+	def testPausing(self):
+		player = pymplb.MPlayer()
+		player.get_property('loop',pausing='pausing')
 
 if __name__ == '__main__':
 	unittest.main()

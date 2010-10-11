@@ -23,6 +23,8 @@ An example:
 >>> import pymplb
 >>> player = pymplb.MPlayer()
 >>> player.loadfile('test.ogv')
+>>> player.p_filename
+'test.ogv'
 """
 
 from functools import partial
@@ -60,7 +62,8 @@ def make_mplayer_class(mplayer_bin='mplayer', method_prefix='', property_prefix=
 			cmd_args = [mplayer_bin, '-slave', '-quiet', '-idle', '-msglevel', 'all=-1:global=4']
 			for (name, value) in mplayer_args.items():
 				cmd_args.append('-'+name)
-				cmd_args.append(value)
+				if value != None and value != True:
+					cmd_args.append(str(value))
 
 			self.__player = _MPlayer._run_player(cmd_args)
 
@@ -227,3 +230,7 @@ def make_mplayer_class(mplayer_bin='mplayer', method_prefix='', property_prefix=
 	return _MPlayer
 
 MPlayer = make_mplayer_class() # pylint: disable-msg=C0103
+
+if __name__ == "__main__":
+	import doctest
+	doctest.testmod(optionflags=doctest.ELLIPSIS)
