@@ -232,7 +232,10 @@ def make_mplayer_class(mplayer_bin='mplayer', method_prefix='', property_prefix=
 	_MPlayer._add_properties(mplayer_bin)
 	return _MPlayer
 
-MPlayer = make_mplayer_class() # pylint: disable-msg=C0103
+try:
+	MPlayer = make_mplayer_class() # pylint: disable-msg=C0103
+except PlayerNotFoundException:
+	pass # Need to do manual initialization
 
 if __name__ == "__main__":
 	import doctest
