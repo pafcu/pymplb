@@ -1,4 +1,4 @@
-pymplb (PYthonMPLayerBingings) is a library that can be used to play media using an external MPlayer process.
+pymplb (PYthonMPLayerBindings) is a library that can be used to play media using an external MPlayer process.
 To use pymplb you must have Python 2.6 or newer and MPlayer installed.
 The library runs the MPlayer binary in slave mode as a subprocess and then sends slave-mode commands to the process.
 Commands are mapped to class methods and properties to class properties (by default prefixed with 'p_').
@@ -31,3 +31,6 @@ To prevent naming collisions between properties and methods the prefix 'p_' is b
 >>> player.prop_filename
 'test.ogv'
 
+
+Support the developer if you like this project:
+http://flattr.com/thing/83683/pymplb-PYthon-MPLayer-Bindings
