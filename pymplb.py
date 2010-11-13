@@ -128,7 +128,10 @@ def make_mplayer_class(mplayer_bin='mplayer', method_prefix='', property_prefix=
 				args = parts[1:]
 				if len(parts) > 1:
 					obligatory = len([x for x in args if x[0] != '[']) # Number of obligatory args
-					argtypes = [cls._arg_types[y] for y in [x.strip('[]') for x in args]]
+					try:
+						argtypes = [cls._arg_types[y] for y in [x.strip('[]') for x in args]]
+					except KeyError:  # Unknown argument type
+						pass # Some garbage on the output (version?)
 
 				method = partial(cmd, name, argtypes, obligatory)
 				if len(args) == 0:
