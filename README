@@ -19,6 +19,7 @@ See the MPlayer documentation for details on pausing.
 By default pymplb assumes that the binary "mplayer" is in your path. If this is not the case, or you want to use a differently named binary, you can do
 >>> MPlayer2 = pymplb.make_mplayer_class(mplayer_bin='/usr/bin/mplayer')
 >>> player = MPlayer2()
+This is especially important when using the Windows OS since most programs are NOT in the path.
 
 The reason why a new class is constructed instead of simply giving the binary path when constructing an MPlayer instance is that introspection capabilities would suffer: it would not be possible to see help for the class until an instance has been constructed. Anyway, this is a minor issue and in general you do not need to worry about this.
 
