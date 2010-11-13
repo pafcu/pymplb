@@ -82,7 +82,7 @@ def make_mplayer_class(mplayer_bin='mplayer', method_prefix='', property_prefix=
 			"""Helper function that runs MPlayer with the given arguments"""
 			try:
 				player = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-			except OSError, err:
+			except OSError as err:
 				if err.errno == 2:
 					raise PlayerNotFoundException(args[0])
 				else:
