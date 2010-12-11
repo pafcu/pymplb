@@ -112,11 +112,21 @@ def make_mplayer_class(mplayer_bin='mplayer', method_prefix='', property_prefix=
 				# Read return value of commands that give one
 				# Hopefully this is smart enough ...
 				if name.startswith('get_'):
-					retval = str(player.stdout.readline().decode('utf-8')).split('=', 2)[1].rstrip()
-					if retval == 'PROPERTY_UNAVAILABLE':
-						return None
-					else:
-						return retval
+					while True:
+						line = player.stdout.readline()
+						if line == '': # no more lines
+							return None
+
+						if not line[:3] == 'ANS':
+							continue
+
+						line = str(line.decode('utf-8'))
+
+						retval = line.split('=', 2)[1].rstrip()
+						if retval == 'PROPERTY_UNAVAILABLE':
+							return None
+						else:
+							return retval
 
 			player = cls._run_player([mplayer_bin, '-input', 'cmdlist'])
 
