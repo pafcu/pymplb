@@ -56,7 +56,7 @@ def make_mplayer_class(mplayer_bin='mplayer', method_prefix='', property_prefix=
 		_arg_types = {'Flag':type(False), 'String':type(''), 'Integer':type(0), 'Float':type(0.0), 'Position':type(0.0), 'Time':type(0.0)} # Mapping from mplayer -> Python types
 		_player_methods = {} # Need to keep track of methods because they must be modified after they have been added
 
-		def __init__(self, mplayer_args_d=None, **mplayer_args):
+		def __init__(self, env=None, mplayer_args_d=None, **mplayer_args):
 			if mplayer_args_d: # Make pylint happy by not passing {} as an argument
 				mplayer_args.update(mplayer_args_d)
 			cmd_args = [mplayer_bin, '-slave', '-quiet', '-idle', '-msglevel', 'all=-1:global=4']
@@ -65,7 +65,7 @@ def make_mplayer_class(mplayer_bin='mplayer', method_prefix='', property_prefix=
 				if value != None and value != True:
 					cmd_args.append(str(value))
 
-			self.__player = _MPlayer._run_player(cmd_args)
+			self.__player = _MPlayer._run_player(cmd_args, env=env)
 
 			# Partially apply methods to use the newly created player
 			for (name, func) in self._player_methods.items():
@@ -78,10 +78,10 @@ def make_mplayer_class(mplayer_bin='mplayer', method_prefix='', property_prefix=
 			self.__player.terminate()
 
 		@staticmethod
-		def _run_player(args):
+		def _run_player(args, env=None):
 			"""Helper function that runs MPlayer with the given arguments"""
 			try:
-				player = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+				player = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
 			except OSError as err:
 				if err.errno == 2:
 					raise PlayerNotFoundException(args[0])
