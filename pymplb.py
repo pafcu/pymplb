@@ -38,7 +38,7 @@ class PlayerNotFoundException(Exception):
 
 def make_mplayer_class(mplayer_bin='mplayer', method_prefix='', property_prefix='p_'):
 	"""
-	Construct a MPlayer class which user mplayer_bin as the platyer binary and prepends the given prefixes to property and method names.
+	Construct a MPlayer class which user mplayer_bin as the player binary and prepends the given prefixes to property and method names.
 	Prefixes are needed because some properties and methods have the same name.
 	You only need to construct a new class if the default values are not suitable (i.e. mplayer is not in your path, or some new commands have been introduced that conflict with the default prefixes.
 	"""
@@ -71,11 +71,14 @@ def make_mplayer_class(mplayer_bin='mplayer', method_prefix='', property_prefix=
 			for (name, func) in self._player_methods.items():
 				setattr(self, name, partial(func, self.__player))
 
-			atexit.register(self.__cleanup) # Make sure subprocess is killed
+			atexit.register(self.close) # Make sure subprocess is killed
 
-		def __cleanup(self):
-			"""Method that kills the MPlayer subprocess when the application using the library exits"""
-			self.__player.terminate()
+		def close(self):
+			"""Method that kills the MPlayer subprocess"""
+			try:
+				self.__player.terminate()
+			except:
+				pass
 
 		@staticmethod
 		def _run_player(args, env=None):
@@ -86,7 +89,7 @@ def make_mplayer_class(mplayer_bin='mplayer', method_prefix='', property_prefix=
 				if err.errno == 2:
 					raise PlayerNotFoundException(args[0])
 				else:
-					raise err
+					raise
 			return player
 
 		@classmethod
@@ -101,7 +104,8 @@ def make_mplayer_class(mplayer_bin='mplayer', method_prefix='', property_prefix=
 				for i in range(len(args)):
 					if type(args[i]) != argtypes[i]:
 						raise TypeError('Argument %d of %s() has type %s, should be %s'%(i, name, type(args[i]).__name__, argtypes[i].__name__))
-				pausing = kwargs.get('pausing','pausing_keep')
+
+				pausing = kwargs.get('pausing', '')
 				if pausing != '':
 					pausing = pausing + ' '
 
@@ -113,20 +117,18 @@ def make_mplayer_class(mplayer_bin='mplayer', method_prefix='', property_prefix=
 				# Hopefully this is smart enough ...
 				if name.startswith('get_'):
 					while True:
-						line = player.stdout.readline()
+						line = player.stdout.readline().decode('utf-8')
 						if line == '': # no more lines
 							return None
 
 						if not line[:3] == 'ANS':
 							continue
 
-						line = str(line.decode('utf-8'))
-
 						retval = line.split('=', 2)[1].rstrip()
 						if retval == 'PROPERTY_UNAVAILABLE':
 							return None
-						else:
-							return retval
+
+						return retval
 
 			player = cls._run_player([mplayer_bin, '-input', 'cmdlist'])
 
@@ -144,7 +146,7 @@ def make_mplayer_class(mplayer_bin='mplayer', method_prefix='', property_prefix=
 						continue # Some garbage on the output (version?)
 
 				method = partial(cmd, name, argtypes, obligatory)
-				if len(args) == 0:
+				if not args:
 					method.__doc__ = 'Method taking no arguments'
 				elif len(args) == 1:
 					method.__doc__ = 'Method taking argument of type %s' % args[0]
@@ -197,12 +199,11 @@ def make_mplayer_class(mplayer_bin='mplayer', method_prefix='', property_prefix=
 						raise ValueError('ValueError: %s must be at most %s (<%s)'%(name, prop_max, value))
 
 				getattr(self, cls._method_prefix+'set_property')(name, str(value))
-					
+
 			player = cls._run_player([mplayer_bin, '-list-properties'])
 			# Add each property found
 			for line in player.stdout:
-				line = str(line.decode('utf-8'))
-				parts = line.strip().split()
+				parts = line.strip().decode('utf-8').split()
 				if not (len(parts) == 4 or (len(parts) == 5 and parts[2] == 'list')):
 					continue
 				name = parts[0]
@@ -210,7 +211,7 @@ def make_mplayer_class(mplayer_bin='mplayer', method_prefix='', property_prefix=
 					prop_type = cls._arg_types[parts[1]]
 				except KeyError:
 					continue
-					
+
 				if parts[2] == 'list': # Actually a list
 					prop_min = parts[3]
 					prop_max = parts[4]
@@ -229,6 +230,7 @@ def make_mplayer_class(mplayer_bin='mplayer', method_prefix='', property_prefix=
 					prop_max = None
 				else:
 					prop_max = prop_type(prop_max)
+
 
 				getter = partial(get_prop, name, prop_type, islist)
 				setter = partial(set_prop, name, prop_type, islist, prop_min, prop_max)
